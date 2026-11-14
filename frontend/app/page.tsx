@@ -10,6 +10,8 @@ import {
   Film,
   Link2,
   LoaderCircle,
+  Menu,
+  X,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -40,6 +42,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function inspectVideo(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,34 +141,31 @@ export default function Home() {
           <span className="wordmark-icon"><ArrowDownToLine size={19} strokeWidth={2.4} /></span>
           <span>tikdown<span className="wordmark-period">.</span></span>
         </a>
-        <nav className="topbar-nav" aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
-          <span className="nav-divider" />
+        <button className="menu-toggle" type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+          {menuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <nav className={`topbar-nav ${menuOpen ? "is-open" : ""}`} aria-label="Main navigation">
+          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>Why Tikdown</a>
+          <a href="#how-to-use" onClick={() => setMenuOpen(false)}>How it works</a>
           <span className="nav-note"><span className="status-dot" /> Free to use</span>
         </nav>
       </header>
 
       <section className="hero-layout">
         <div className="intro">
-          <p className="eyebrow"><span className="eyebrow-line" /> TIKTOK VIDEO DOWNLOADER</p>
-          <h1>Save the video.<br /><span>Keep it clean.</span></h1>
+          <p className="hero-badge"><Sparkles size={14} /> SIMPLE TIKTOK VIDEO DOWNLOADER</p>
+          <h1>TikTok Video<br />Downloader<br /><span>Without the clutter.</span></h1>
           <p className="intro-copy">
-            A straightforward way to save public TikTok videos. Paste a link,
-            check the source, and download the best quality available.
+            Save public TikTok videos in the best quality the original source makes available.
+            No account, no unnecessary steps.
           </p>
-          <div className="intro-points">
-            <span><Check size={15} /> No sign-up</span>
-            <span><Check size={15} /> No added compression</span>
-            <span><Check size={15} /> Direct download</span>
-          </div>
-          <a className="text-link" href="#how-it-works">See how it works <ArrowUpRight size={15} /></a>
         </div>
 
         <section className="download-panel" aria-label="TikTok video downloader">
           <div className="panel-heading">
             <div>
               <p className="panel-overline">YOUR DOWNLOAD</p>
-              <h2>Paste a video link</h2>
+              <h2>Download your video</h2>
             </div>
             <span className="panel-number">01 / 01</span>
           </div>
@@ -192,9 +192,9 @@ export default function Home() {
               </button>
             </div>
             <button className="inspect-button" type="submit" disabled={loading || !url.trim()}>
-              {loading ? <><LoaderCircle className="spin" size={17} /> Checking link</> : <>Find video <ArrowUpRight size={17} /></>}
+              {loading ? <><LoaderCircle className="spin" size={17} /> Checking link</> : <>Get video <ArrowUpRight size={17} /></>}
             </button>
-            <p className="form-hint">Works with public TikTok video links.</p>
+            <p className="form-hint">Paste a public TikTok link to check its available source.</p>
           </form>
 
           {error && <p className="error-message" role="alert">{error}</p>}
@@ -240,24 +240,37 @@ export default function Home() {
         </section>
       </section>
 
-      <section className="steps-section" id="how-it-works">
-        <div className="steps-heading">
-          <p className="eyebrow"><span className="eyebrow-line" /> NO EXTRA STEPS</p>
-          <h2>Three steps. Nothing else.</h2>
+      <section className="features-section" id="how-it-works">
+        <div className="features-heading">
+          <p className="hero-badge"><Sparkles size={13} /> MADE TO BE SIMPLE</p>
+          <h2>Why use Tikdown?</h2>
+          <p>Everything you need. Nothing getting in the way.</p>
         </div>
-        <div className="steps-list">
-          <article>
-            <span className="step-number">01</span>
-            <div><h3>Copy the link</h3><p>Open TikTok and copy the share link of the video.</p></div>
+        <div className="feature-grid">
+          <article className="feature-card">
+            <span className="feature-icon"><ShieldCheck size={25} /></span>
+            <h3>Clean downloads</h3>
+            <p>Get the clean source when TikTok makes a watermark-free stream available.</p>
           </article>
-          <article>
-            <span className="step-number">02</span>
-            <div><h3>Check the source</h3><p>We check the video and show the best source quality available.</p></div>
+          <article className="feature-card">
+            <span className="feature-icon"><Film size={25} /></span>
+            <h3>Best available quality</h3>
+            <p>We check the available source instead of promising a resolution the video doesn't have.</p>
           </article>
-          <article>
-            <span className="step-number">03</span>
-            <div><h3>Save your video</h3><p>Download the file directly to your device.</p></div>
+          <article className="feature-card">
+            <span className="feature-icon"><Download size={25} /></span>
+            <h3>Simple and free</h3>
+            <p>No account or subscription. Just paste a link and save the video.</p>
           </article>
+        </div>
+      </section>
+
+      <section className="how-section" id="how-to-use">
+        <div className="how-heading"><p className="section-kicker">HOW IT WORKS</p><h2>Three quick steps</h2></div>
+        <div className="how-steps">
+          <p><span>01</span> Copy the TikTok video link.</p>
+          <p><span>02</span> Paste it above and check the source.</p>
+          <p><span>03</span> Download the video to your device.</p>
         </div>
       </section>
 
