@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import secrets
 import shutil
 import tempfile
 from pathlib import Path
@@ -40,6 +41,12 @@ TIKTOK_HOSTS = {
 }
 MAX_FILE_BYTES = 500 * 1024 * 1024
 
+# Enable yt-dlp's official TikTok mobile API extractor. A stable install ID
+# is used for this process; set TIKTOK_APP_INFO to override it if needed.
+TIKTOK_APP_INFO = os.getenv("TIKTOK_APP_INFO") or str(
+    secrets.randbelow(8_000_000_000_000_000_000) + 1_000_000_000_000_000_000
+)
+
 
 def validate_tiktok_url(raw_url: str) -> str:
     value = raw_url.strip()
@@ -67,6 +74,11 @@ def ydl_options() -> dict:
         "fragment_retries": 3,
         "max_filesize": MAX_FILE_BYTES,
         "cachedir": False,
+        "extractor_args": {
+            "tiktok": {
+                "app_info": [TIKTOK_APP_INFO],
+            },
+        },
     }
 
 
@@ -130,6 +142,9 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
         )
         height = best.get("height")
         width = best.get("width")
+        # TikTok labels portrait streams by their shorter edge (e.g. 1080x1920
+        # is 1080p), not by the 1920-pixel vertical dimension.
+        quality_dimension = min(width, height) if width and height else height
         return {
             "id": data.get("id"),
             "title": data.get("title") or "TikTok video",
@@ -138,7 +153,13 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
             "duration": data.get("duration"),
             "width": width,
             "height": height,
-            "quality": f"{height}p" if height else "Best available",
+            "quality": f"{quality_dimension}p" if quality_dimension else "Best available",
+            "available_qualities": sorted({
+                min(fmt.get("width"), fmt.get("height"))
+                if fmt.get("width") and fmt.get("height") else fmt.get("height")
+                for fmt in clean_formats
+                if fmt.get("height") or fmt.get("width")
+            }, reverse=True),
             "watermark_free_source": True,
             "note": "Highest playable source resolution exposed by TikTok. Genuine 4K is available only when the source itself is 4K.",
         }
@@ -155,10 +176,10 @@ def download(url: str = Query(..., min_length=8, max_length=2048)):
     output_template = str(Path(temp_dir) / "%(id)s.%(ext)s")
     options = {
         **ydl_options(),
-        # Let yt-dlp's maintained TikTok extractor choose its best playable
-        # stream. It ranks native playback streams above TikTok's watermarked
-        # download endpoint and marks unsupported ByteVC2 streams unplayable.
-        # The previous custom selector filtered out every available format.
+        # Prefer the highest playable source exposed by TikTok's mobile API.
+        # yt-dlp falls back to its webpage extractor if the mobile API is unavailable.
+        # Its TikTok extractor ranks native playback streams above watermarked
+        # download endpoints and marks unsupported ByteVC2 streams unplayable.
         "format": "best",
         "outtmpl": output_template,
         "overwrites": True,
