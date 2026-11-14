@@ -60,19 +60,40 @@ export default function Home() {
     setError("");
     setDownloading(true);
     try {
-      // Navigate directly to the streaming endpoint. This avoids buffering a
-      // potentially large video in browser memory.
-      const target = `${API}/download?url=${encodeURIComponent(url.trim())}`;
+      // Fetch first so API errors are shown inside the page instead of opening
+      // a blank browser tab containing a raw JSON response.
+      const response = await fetch(`${API}/download?url=${encodeURIComponent(url.trim())}`);
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        let message = "The video could not be downloaded. Please try again.";
+        if (contentType.includes("application/json")) {
+          const data = await response.json();
+          message = data.detail || message;
+        } else {
+          const body = await response.text();
+          if (body) message = body.slice(0, 240);
+        }
+        throw new Error(message);
+      }
+
+      const file = await response.blob();
+      if (!file.size) throw new Error("TikTok returned an empty video file.");
+
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] || `tikdown-${video.id || "video"}.mp4`;
+      const objectUrl = URL.createObjectURL(file);
       const anchor = document.createElement("a");
-      anchor.href = target;
-      anchor.rel = "noopener";
+      anchor.href = objectUrl;
+      anchor.download = filename;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-    } catch {
-      setError("The download could not be started. Please try again.");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The download could not be started. Please try again.");
     } finally {
-      window.setTimeout(() => setDownloading(false), 1800);
+      setDownloading(false);
     }
   }
 
