@@ -96,6 +96,11 @@ def friendly_error(exc: Exception) -> str:
     return "TikTok could not provide this video. Check the link and try again."
 
 
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "tikdown-api", "health": "/health"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "tikdown-api", "version": app.version}
