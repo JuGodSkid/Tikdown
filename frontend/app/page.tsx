@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpRight,
@@ -14,6 +14,8 @@ import {
   X,
   ShieldCheck,
   Sparkles,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 type VideoInfo = {
@@ -43,6 +45,21 @@ export default function Home() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("tikdown-theme");
+    const nextTheme = saved === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    setTheme(nextTheme);
+  }, []);
+
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    window.localStorage.setItem("tikdown-theme", nextTheme);
+  }
 
   async function inspectVideo(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -141,6 +158,10 @@ export default function Home() {
           <span className="wordmark-icon"><ArrowDownToLine size={19} strokeWidth={2.4} /></span>
           <span>tikdown<span className="wordmark-period">.</span></span>
         </a>
+        <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"}>
+          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+          <span>{theme === "dark" ? "Light" : "Dark"}</span>
+        </button>
         <button className="menu-toggle" type="button" aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
