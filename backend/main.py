@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from yt_dlp import YoutubeDL
 
-app = FastAPI(title="Tikdown API", version="1.0.2")
+app = FastAPI(title="Tikdown API", version="1.0.3")
 
 allowed_origins = [
     item.strip()
@@ -54,7 +54,6 @@ def validate_tiktok_url(raw_url: str) -> str:
         raise HTTPException(status_code=400, detail="Only TikTok links are supported.")
     if parsed.username or parsed.password:
         raise HTTPException(status_code=400, detail="That link is not valid.")
-
     return value
 
 
@@ -63,9 +62,9 @@ def ydl_options() -> dict:
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "socket_timeout": 25,
-        "retries": 2,
-        "fragment_retries": 2,
+        "socket_timeout": 30,
+        "retries": 3,
+        "fragment_retries": 3,
         "max_filesize": MAX_FILE_BYTES,
         "cachedir": False,
     }
@@ -88,12 +87,12 @@ def friendly_error(exc: Exception) -> str:
     if "private" in message or "login" in message or "sign in" in message:
         return "This video is private or requires a TikTok login."
     if "not available" in message or "deleted" in message:
-        return "This video is unavailable. It may have been deleted or restricted."
+        return "TikTok could not provide this video. It may be restricted, region-limited, or temporarily unavailable."
     if "max-filesize" in message or "file is larger" in message:
         return "This video is larger than the current 500 MB download limit."
     if "requested format is not available" in message:
-        return "TikTok did not provide a playable, unwatermarked source for this link."
-    return "TikTok could not provide this video. Check the link and try again."
+        return "TikTok did not expose a downloadable video stream for this link. Try again later."
+    return "TikTok could not provide this video right now. Please try again."
 
 
 @app.get("/")
@@ -122,7 +121,7 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
         if not clean_formats:
             raise HTTPException(
                 status_code=422,
-                detail="TikTok did not expose a playable, unwatermarked video source for this link.",
+                detail="TikTok did not expose a playable video source for this link.",
             )
 
         best = max(
@@ -131,7 +130,6 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
         )
         height = best.get("height")
         width = best.get("width")
-
         return {
             "id": data.get("id"),
             "title": data.get("title") or "TikTok video",
@@ -142,7 +140,7 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
             "height": height,
             "quality": f"{height}p" if height else "Best available",
             "watermark_free_source": True,
-            "note": "Highest playable unwatermarked source resolution exposed by TikTok. Genuine 4K is available only when the source itself is 4K.",
+            "note": "Highest playable source resolution exposed by TikTok. Genuine 4K is available only when the source itself is 4K.",
         }
     except HTTPException:
         raise
@@ -157,9 +155,11 @@ def download(url: str = Query(..., min_length=8, max_length=2048)):
     output_template = str(Path(temp_dir) / "%(id)s.%(ext)s")
     options = {
         **ydl_options(),
-        # Prefer TikTok playback formats; reject formats explicitly marked watermarked.
-        # Select one combined stream to avoid needless merging or re-encoding.
-        "format": "best[format_note!*=watermarked][vcodec!*=bytevc2]",
+        # Let yt-dlp's maintained TikTok extractor choose its best playable
+        # stream. It ranks native playback streams above TikTok's watermarked
+        # download endpoint and marks unsupported ByteVC2 streams unplayable.
+        # The previous custom selector filtered out every available format.
+        "format": "best",
         "outtmpl": output_template,
         "overwrites": True,
     }
