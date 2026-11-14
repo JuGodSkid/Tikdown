@@ -13,11 +13,14 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from yt_dlp import YoutubeDL
 
-app = FastAPI(title="Tikdown API", version="1.0.1")
+app = FastAPI(title="Tikdown API", version="1.0.2")
 
 allowed_origins = [
     item.strip()
-    for item in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+    for item in os.getenv(
+        "ALLOWED_ORIGINS",
+        "https://tikdown-zeta.vercel.app,https://tikdown-ju-god.vercel.app",
+    ).split(",")
     if item.strip()
 ]
 app.add_middleware(
@@ -60,7 +63,7 @@ def ydl_options() -> dict:
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "socket_timeout": 20,
+        "socket_timeout": 25,
         "retries": 2,
         "fragment_retries": 2,
         "max_filesize": MAX_FILE_BYTES,
@@ -68,9 +71,16 @@ def ydl_options() -> dict:
     }
 
 
-def is_unwatermarked_video_format(fmt: dict) -> bool:
+def is_clean_playable_video_format(fmt: dict) -> bool:
     note = str(fmt.get("format_note") or "").lower()
-    return fmt.get("vcodec") not in (None, "none") and bool(fmt.get("height")) and "watermarked" not in note
+    codec = str(fmt.get("vcodec") or "").lower()
+    return (
+        codec not in {"", "none"}
+        and "bytevc2" not in codec
+        and bool(fmt.get("height"))
+        and "watermarked" not in note
+        and "unplayable" not in note
+    )
 
 
 def friendly_error(exc: Exception) -> str:
@@ -82,7 +92,7 @@ def friendly_error(exc: Exception) -> str:
     if "max-filesize" in message or "file is larger" in message:
         return "This video is larger than the current 500 MB download limit."
     if "requested format is not available" in message:
-        return "TikTok did not provide a downloadable unwatermarked video source for this link."
+        return "TikTok did not provide a playable, unwatermarked source for this link."
     return "TikTok could not provide this video. Check the link and try again."
 
 
@@ -100,17 +110,19 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
         if not data:
             raise HTTPException(status_code=422, detail="No video information was returned.")
 
-        formats = data.get("formats") or []
-        clean_formats = [fmt for fmt in formats if is_unwatermarked_video_format(fmt)]
+        clean_formats = [
+            fmt for fmt in (data.get("formats") or [])
+            if is_clean_playable_video_format(fmt)
+        ]
         if not clean_formats:
             raise HTTPException(
                 status_code=422,
-                detail="TikTok did not expose an unwatermarked video source for this link.",
+                detail="TikTok did not expose a playable, unwatermarked video source for this link.",
             )
 
         best = max(
             clean_formats,
-            key=lambda fmt: (fmt.get("height") or 0, fmt.get("tbr") or 0),
+            key=lambda fmt: (fmt.get("height") or 0, fmt.get("width") or 0, fmt.get("tbr") or 0),
         )
         height = best.get("height")
         width = best.get("width")
@@ -125,7 +137,7 @@ def info(url: str = Query(..., min_length=8, max_length=2048)):
             "height": height,
             "quality": f"{height}p" if height else "Best available",
             "watermark_free_source": True,
-            "note": "Highest unwatermarked source resolution exposed by TikTok. Genuine 4K is available only when the source itself is 4K.",
+            "note": "Highest playable unwatermarked source resolution exposed by TikTok. Genuine 4K is available only when the source itself is 4K.",
         }
     except HTTPException:
         raise
@@ -140,12 +152,10 @@ def download(url: str = Query(..., min_length=8, max_length=2048)):
     output_template = str(Path(temp_dir) / "%(id)s.%(ext)s")
     options = {
         **ydl_options(),
-        # Explicitly reject formats TikTok labels as watermarked. If no clean
-        # source is exposed, yt-dlp fails rather than quietly returning one.
-        "format": "bestvideo*[format_note!*=watermarked]+bestaudio/best[format_note!*=watermarked]",
+        # Prefer TikTok playback formats; reject formats explicitly marked watermarked.
+        # Select one combined stream to avoid needless merging or re-encoding.
+        "format": "best[format_note!*=watermarked][vcodec!*=bytevc2]",
         "outtmpl": output_template,
-        # FFmpeg may remux streams into MP4, but does not re-encode them.
-        "merge_output_format": "mp4",
         "overwrites": True,
     }
 
@@ -166,7 +176,7 @@ def download(url: str = Query(..., min_length=8, max_length=2048)):
             raise RuntimeError("The downloaded media file could not be located.")
 
         if media_path.stat().st_size > MAX_FILE_BYTES:
-            raise HTTPException(status_code=413, detail="This video exceeds the 500 MB download limit.")
+            raise HTTPException(status_code=413, detail="This video exceeds the current 500 MB download limit.")
 
         safe_id = re.sub(r"[^A-Za-z0-9_-]", "", str(info_data.get("id") or "video"))[:80] or "video"
         suffix = media_path.suffix.lower()
