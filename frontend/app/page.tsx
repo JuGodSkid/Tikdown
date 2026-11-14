@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownToLine, Check, Clipboard, Download, Film, Link2, LoaderCircle, ShieldCheck, Sparkles, Zap } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowUpRight,
+  Check,
+  Clipboard,
+  Download,
+  Film,
+  Link2,
+  LoaderCircle,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
 type VideoInfo = {
   id: string;
@@ -13,12 +24,13 @@ type VideoInfo = {
   height?: number | null;
   quality: string;
   note: string;
+  available_qualities?: number[];
 };
 
 const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 function formatDuration(seconds?: number | null) {
-  if (!seconds) return "Unknown duration";
+  if (seconds == null) return "Duration unavailable";
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
@@ -28,28 +40,35 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
 
   async function inspectVideo(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setVideo(null);
+
     if (!API) {
-      setError("The downloader API has not been connected yet. Please try again after deployment is configured.");
+      setError("The downloader is not connected yet. Please try again later.");
       return;
     }
-    if (!/^(https?:\/\/)?([\w-]+\.)?tiktok\.com\//i.test(url.trim())) {
-      setError("Paste a valid TikTok video link.");
+
+    try {
+      const parsed = new URL(url.trim());
+      if (!["tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"].includes(parsed.hostname.toLowerCase())) {
+        throw new Error("Paste a valid TikTok video link.");
+      }
+    } catch (err) {
+      setError(err instanceof Error && err.message.includes("valid TikTok") ? err.message : "Paste a valid TikTok video link.");
       return;
     }
+
     setLoading(true);
     try {
       const response = await fetch(`${API}/info?url=${encodeURIComponent(url.trim())}`);
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || "Could not read this video.");
+      if (!response.ok) throw new Error(data.detail || "We couldn't read this video.");
       setVideo(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -59,9 +78,8 @@ export default function Home() {
     if (!video || !API) return;
     setError("");
     setDownloading(true);
+
     try {
-      // Fetch first so API errors are shown inside the page instead of opening
-      // a blank browser tab containing a raw JSON response.
       const response = await fetch(`${API}/download?url=${encodeURIComponent(url.trim())}`);
       if (!response.ok) {
         const contentType = response.headers.get("content-type") || "";
@@ -98,98 +116,158 @@ export default function Home() {
   }
 
   async function pasteLink() {
+    setError("");
     try {
       const value = await navigator.clipboard.readText();
       if (value) setUrl(value.trim());
     } catch {
-      setError("Clipboard access is unavailable. Paste your link into the box.");
+      setError("Clipboard access is unavailable here. Paste your link into the field.");
     }
   }
 
+  function clearVideo() {
+    setVideo(null);
+    setError("");
+    setUrl("");
+  }
+
   return (
-    <main className="page-shell">
-      <nav className="nav">
-        <a className="brand" href="/" aria-label="Tikdown home">
-          <span className="brand-mark"><ArrowDownToLine size={20} strokeWidth={2.7} /></span>
-          <span>tik<span>down</span></span>
+    <main className="site-shell">
+      <header className="topbar">
+        <a className="wordmark" href="/" aria-label="Tikdown home">
+          <span className="wordmark-icon"><ArrowDownToLine size={19} strokeWidth={2.4} /></span>
+          <span>tikdown<span className="wordmark-period">.</span></span>
         </a>
-        <a className="nav-link" href="#how-it-works">How it works <span>↗</span></a>
-      </nav>
+        <nav className="topbar-nav" aria-label="Main navigation">
+          <a href="#how-it-works">How it works</a>
+          <span className="nav-divider" />
+          <span className="nav-note"><span className="status-dot" /> Free to use</span>
+        </nav>
+      </header>
 
-      <section className="hero">
-        <div className="eyebrow"><span className="pulse" /> SIMPLE. CLEAN. ORIGINAL QUALITY.</div>
-        <h1>Your TikTok.<br /><span>Saved your way.</span></h1>
-        <p className="hero-copy">Download videos in the best quality TikTok makes available. No unnecessary compression. No account needed.</p>
-
-        <form className="download-card" onSubmit={inspectVideo}>
-          <label htmlFor="tiktok-url">PASTE TIKTOK LINK</label>
-          <div className="input-row">
-            <Link2 className="input-icon" size={19} />
-            <input
-              id="tiktok-url"
-              type="url"
-              placeholder="https://www.tiktok.com/@user/video/..."
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              autoComplete="url"
-              required
-            />
-            <button className="paste-button" type="button" onClick={pasteLink}><Clipboard size={16} /> Paste</button>
+      <section className="hero-layout">
+        <div className="intro">
+          <p className="eyebrow"><span className="eyebrow-line" /> TIKTOK VIDEO DOWNLOADER</p>
+          <h1>Save the video.<br /><span>Keep it clean.</span></h1>
+          <p className="intro-copy">
+            A straightforward way to save public TikTok videos. Paste a link,
+            check the source, and download the best quality available.
+          </p>
+          <div className="intro-points">
+            <span><Check size={15} /> No sign-up</span>
+            <span><Check size={15} /> No added compression</span>
+            <span><Check size={15} /> Direct download</span>
           </div>
-          <button className="primary-button" type="submit" disabled={loading || !url.trim()}>
-            {loading ? <><LoaderCircle className="spin" size={18} /> Checking video...</> : <><Sparkles size={17} /> Find video</>}
-          </button>
-          {error && <p className="error-message" role="alert">{error}</p>}
-        </form>
+          <a className="text-link" href="#how-it-works">See how it works <ArrowUpRight size={15} /></a>
+        </div>
 
-        {video && (
-          <section className="result-card" aria-live="polite">
-            <div className="result-top">
-              {video.thumbnail ? <img className="thumbnail" src={video.thumbnail} alt="TikTok video thumbnail" /> : <div className="thumbnail placeholder"><Film size={26} /></div>}
-              <div className="result-copy">
-                <div className="result-kicker"><Check size={14} /> VIDEO FOUND</div>
-                <h2>{video.title}</h2>
-                <p>@{video.creator} · {formatDuration(video.duration)}</p>
-              </div>
+        <section className="download-panel" aria-label="TikTok video downloader">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-overline">YOUR DOWNLOAD</p>
+              <h2>Paste a video link</h2>
             </div>
-            <div className="quality-row">
-              <div><span className="quality-label">AVAILABLE SOURCE</span><strong>{video.quality}</strong></div>
-              <div><span className="quality-label">FORMAT</span><strong>Best available</strong></div>
-              <div><span className="quality-label">PROCESSING</span><strong>No re-encode</strong></div>
+            <span className="panel-number">01 / 01</span>
+          </div>
+
+          <form onSubmit={inspectVideo} className="url-form">
+            <label htmlFor="tiktok-url">TIKTOK URL</label>
+            <div className="url-input-wrap">
+              <Link2 size={18} className="url-icon" />
+              <input
+                id="tiktok-url"
+                type="url"
+                placeholder="Paste your TikTok link here"
+                value={url}
+                onChange={(event) => {
+                  setUrl(event.target.value);
+                  if (error) setError("");
+                }}
+                autoComplete="url"
+                required
+              />
+              <button className="paste-button" type="button" onClick={pasteLink}>
+                <Clipboard size={15} />
+                <span>Paste</span>
+              </button>
             </div>
-            <button className="primary-button result-download" onClick={downloadVideo} disabled={downloading}>
-              {downloading ? <><LoaderCircle className="spin" size={18} /> Starting download...</> : <><Download size={18} /> Download video</>}
+            <button className="inspect-button" type="submit" disabled={loading || !url.trim()}>
+              {loading ? <><LoaderCircle className="spin" size={17} /> Checking link</> : <>Find video <ArrowUpRight size={17} /></>}
             </button>
-            <p className="quality-note">{video.note}</p>
-          </section>
-        )}
-        <div className="trust-row">
-          <span><ShieldCheck size={15} /> No account required</span>
-          <span><Zap size={15} /> Direct file download</span>
-          <span><Film size={15} /> Original stream quality</span>
+            <p className="form-hint">Works with public TikTok video links.</p>
+          </form>
+
+          {error && <p className="error-message" role="alert">{error}</p>}
+
+          {video && (
+            <div className="video-result" aria-live="polite">
+              <div className="result-header">
+                <span className="result-status"><Check size={13} /> VIDEO FOUND</span>
+                <button type="button" className="change-link" onClick={clearVideo}>Change link</button>
+              </div>
+              <div className="video-summary">
+                {video.thumbnail
+                  ? <img className="video-thumbnail" src={video.thumbnail} alt="TikTok video thumbnail" />
+                  : <div className="video-thumbnail thumbnail-placeholder"><Film size={25} /></div>}
+                <div className="video-meta">
+                  <h3>{video.title}</h3>
+                  <p>@{video.creator} <span>·</span> {formatDuration(video.duration)}</p>
+                </div>
+              </div>
+              <div className="source-details">
+                <div>
+                  <span className="detail-label">SOURCE QUALITY</span>
+                  <strong>{video.quality}</strong>
+                </div>
+                <div>
+                  <span className="detail-label">PROCESSING</span>
+                  <strong>Original stream</strong>
+                </div>
+              </div>
+              <button className="inspect-button download-action" type="button" onClick={downloadVideo} disabled={downloading}>
+                {downloading
+                  ? <><LoaderCircle className="spin" size={17} /> Preparing download</>
+                  : <><Download size={17} /> Download video</>}
+              </button>
+              <p className="result-note">{video.note}</p>
+            </div>
+          )}
+
+          <div className="panel-foot">
+            <ShieldCheck size={15} />
+            <span>Only download videos you have permission to save.</span>
+          </div>
+        </section>
+      </section>
+
+      <section className="steps-section" id="how-it-works">
+        <div className="steps-heading">
+          <p className="eyebrow"><span className="eyebrow-line" /> NO EXTRA STEPS</p>
+          <h2>Three steps. Nothing else.</h2>
+        </div>
+        <div className="steps-list">
+          <article>
+            <span className="step-number">01</span>
+            <div><h3>Copy the link</h3><p>Open TikTok and copy the share link of the video.</p></div>
+          </article>
+          <article>
+            <span className="step-number">02</span>
+            <div><h3>Check the source</h3><p>We check the video and show the best source quality available.</p></div>
+          </article>
+          <article>
+            <span className="step-number">03</span>
+            <div><h3>Save your video</h3><p>Download the file directly to your device.</p></div>
+          </article>
         </div>
       </section>
 
-      <section className="feature-strip" id="how-it-works">
-        <article><span className="feature-icon"><Sparkles size={19} /></span><h3>Best available quality</h3><p>We use the highest-resolution source TikTok exposes. If it is 4K, we keep it 4K.</p></article>
-        <article><span className="feature-icon"><ShieldCheck size={19} /></span><h3>No fake upgrades</h3><p>No artificial upscaling, no sneaky compression, and no quality claims pulled from thin air.</p></article>
-        <article><span className="feature-icon"><Download size={19} /></span><h3>Simple downloads</h3><p>Paste a link, check the source details, then save the video directly to your device.</p></article>
-      </section>
-
-      <section className="how-section">
-        <div className="section-tag">THREE STEPS. THAT'S IT.</div>
-        <h2>From link to library.</h2>
-        <div className="steps">
-          <div><span>01</span><h3>Copy the link</h3><p>Copy the share link of a public TikTok video you own or have permission to save.</p></div>
-          <div><span>02</span><h3>Paste it here</h3><p>We'll check the video and show the best source resolution available.</p></div>
-          <div><span>03</span><h3>Download</h3><p>Save the available source without unnecessary re-encoding.</p></div>
-        </div>
-      </section>
-
-      <footer>
-        <a className="brand footer-brand" href="/"><span className="brand-mark"><ArrowDownToLine size={17} /></span><span>tik<span>down</span></span></a>
-        <p>Only download content you own or are authorized to save. Respect creators' rights and TikTok's terms.</p>
-        <span className="copyright">© {new Date().getFullYear()} Tikdown</span>
+      <footer className="footer">
+        <a className="wordmark footer-wordmark" href="/">
+          <span className="wordmark-icon"><ArrowDownToLine size={16} strokeWidth={2.4} /></span>
+          <span>tikdown<span className="wordmark-period">.</span></span>
+        </a>
+        <p>Save responsibly. Respect the people who make the videos.</p>
+        <span className="footer-copyright">© {new Date().getFullYear()} Tikdown</span>
       </footer>
     </main>
   );
