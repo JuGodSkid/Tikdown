@@ -49,7 +49,7 @@ export default function Home() {
 
   useEffect(() => {
     const saved = window.localStorage.getItem("tikdown-theme");
-    const nextTheme = saved === "light" ? "light" : "dark";
+    const nextTheme = saved === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = nextTheme;
     setTheme(nextTheme);
   }, []);
