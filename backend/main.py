@@ -86,12 +86,12 @@ def friendly_error(exc: Exception) -> str:
     message = str(exc).lower()
     if "private" in message or "login" in message or "sign in" in message:
         return "This video is private or requires a TikTok login."
-    if "not available" in message or "deleted" in message:
-        return "TikTok could not provide this video. It may be restricted, region-limited, or temporarily unavailable."
     if "max-filesize" in message or "file is larger" in message:
         return "This video is larger than the current 500 MB download limit."
     if "requested format is not available" in message:
         return "TikTok did not expose a downloadable video stream for this link. Try again later."
+    if "not available" in message or "deleted" in message:
+        return "TikTok could not provide this video. It may be restricted, region-limited, or temporarily unavailable."
     return "TikTok could not provide this video right now. Please try again."
 
 
