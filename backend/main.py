@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from yt_dlp import YoutubeDL
 
-app = FastAPI(title="Tikdown API", version="1.0.3")
+app = FastAPI(title="Tikdown API", version="1.0.4")
 
 allowed_origins = [
     item.strip()
